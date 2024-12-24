@@ -94,7 +94,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             off_leds();
             if (record->event.pressed) {
                 for (int i = 0; i < 10; i++) { run();}
-                return false;6789012
+                return false;
             }
             on_leds();
         case KC_CUSTOM_20:
