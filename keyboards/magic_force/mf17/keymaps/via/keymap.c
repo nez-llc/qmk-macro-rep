@@ -16,14 +16,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include QMK_KEYBOARD_H
 
-//#include "./libs/mouse.h"
-//#include "./libs/delay.h"
-
 #define SCREEN_WIDTH  2560  // 가로 해상도
 #define SCREEN_HEIGHT 1440  // 세로 해상도
 
 #define DELAY_MIN 500
 #define DELAY_MAX 800
+
+#define MAX_RUN_TIMEOUT 54000000
 
 void move_to_absolute(uint16_t x, uint16_t y) {
     digitizer_in_range_on();
@@ -42,6 +41,9 @@ void random_pause(void) {
     }
 }
 
+void off_leds(void) { rgb_matrix_disable_noeeprom(); }
+void on_leds(void) { rgb_matrix_enable_noeeprom(); }
+
 enum custom_keycodes {
     KC_CUSTOM_1 = SAFE_RANGE,  // 0x7E40
     KC_CUSTOM_10,
@@ -49,6 +51,7 @@ enum custom_keycodes {
     KC_CUSTOM_30,
     KC_CUSTOM_50,
     KC_CUSTOM_100,
+    KC_CUSTOM_INF,
     MM_ZERO,
 };
 
@@ -77,61 +80,79 @@ void run(void) {
     random_pause();
 }
 
-void off_leds(void) {
-    rgb_matrix_enable_noeeprom();
+static uint32_t defer_run(uint32_t trigger_time, void* cb_arg) {
+    uint16_t times = (uint16_t)(uintptr_t)cb_arg;
+
+    for (int i = 0; i < times; i++) { run(); }
+
+    on_leds();
+    return 0;
 }
 
-void on_leds(void) {
-    rgb_matrix_disable_noeeprom();
-}
+bool running = false;
+static uint32_t run_inf_timer = 0;
 
+void matrix_scan_user(void) {
+    if (running) {
+        if (timer_elapsed32(run_inf_timer) > MAX_RUN_TIMEOUT) {
+            running = false;
+            on_leds();
+        }
+    }
+}
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
-//        case KC_CUSTOM_1:
-//            rgb_matrix_toggle();
+        case KC_CUSTOM_1:
+            if (record->event.pressed) {
+                rgb_matrix_disable_noeeprom();
+                defer_exec(100, run_test, NULL);
+            }
+            return false;
         case KC_CUSTOM_10:
-            off_leds();
             if (record->event.pressed) {
-                for (int i = 0; i < 10; i++) { run();}
-                return false;
+                off_leds();
+                defer_exec(100, defer_run, (void*)10);
             }
-            on_leds();
+            return false;
         case KC_CUSTOM_20:
-            off_leds();
             if (record->event.pressed) {
-                for (int i = 0; i < 20; i++) { run();}
-                return false;
+                off_leds();
+                defer_exec(100, defer_run, (void*)20);
             }
-            on_leds();
+            return false;
         case KC_CUSTOM_30:
-            off_leds();
             if (record->event.pressed) {
-                for (int i = 0; i < 30; i++) { run();}
-                return false;
+                off_leds();
+                defer_exec(100, defer_run, (void*)30);
             }
-            on_leds();
+            return false;
         case KC_CUSTOM_50:
-            off_leds();
             if (record->event.pressed) {
-                for (int i = 0; i < 50; i++) { run();}
-                return false;
+                off_leds();
+                defer_exec(100, defer_run, (void*)50);
             }
-            on_leds();
+            return false;
         case KC_CUSTOM_100:
-            off_leds();
             if (record->event.pressed) {
-                for (int i = 0; i < 100; i++) { run();}
-                return false;
+                off_leds();
+                defer_exec(100, defer_run, (void*)100);
             }
-            on_leds();
+            return false;
+        case KC_CUSTOM_INF:
+            if (record->event.pressed) {
+                running = true;
+                off_leds();
+                run_inf_timer = timer_read32();
+            }
+            return false;
     }
     return true;
 }
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   [0] = LAYOUT_numpad_5x4(
-        QK_BOOTLOADER,          KC_PSLS,       KC_PAST,             LT(1, KC_CUSTOM_100),
+        QK_BOOTLOADER,          KC_PSLS,       KC_CUSTOM_INF,       LT(1, KC_CUSTOM_100),
         KC_P7,                  KC_P8,         KC_P9,
         KC_P4,                  KC_P5,         KC_P6,               KC_CUSTOM_50,
         KC_P1,                  KC_P2,         KC_P3,
